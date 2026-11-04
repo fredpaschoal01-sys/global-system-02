@@ -25,7 +25,7 @@ async function loadRows(){
   if(!sessionData.session){$("loginBox").hidden=false;$("appContent").hidden=true;$("connection").textContent="Aguardando login";return;}
   $("loginBox").hidden=true;$("appContent").hidden=false;
   $("connection").textContent = "Carregando dados";
-  const {data,error}=await client.from("pgfn_registros").select("*").order("valor_divida",{ascending:false}).range(0,4999);
+  const {data,error}=await client.from("painel_registros").select("*").order("valor_divida",{ascending:false}).range(0,4999);
   if(error){$("connection").textContent="Erro ao consultar banco";$("rows").innerHTML=`<tr><td colspan="5" class="empty">${escapeHtml(error.message)}</td></tr>`;return;}
   allRows=data||[];
   $("connection").textContent="Conectado";
@@ -43,17 +43,30 @@ function fillFilters(){
 }
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
-  return allRows.filter(x=>(!q||[x.nome_devedor,x.cnpj].some(v=>String(v||"").toLowerCase().includes(q)))&&(!$("status").value||x.situacao===$("status").value)&&(!$("nature").value||x.natureza===$("nature").value));
+  return allRows.filter(x=>(!q||[x.nome_devedor,x.razao_social,x.nome_fantasia,x.cnpj].some(v=>String(v||"").toLowerCase().includes(q)))&&(!$("status").value||x.situacao===$("status").value)&&(!$("nature").value||x.natureza===$("nature").value));
+}
+const fmtPhone=(p)=>p.length===11?`(${p.slice(0,2)}) ${p.slice(2,7)}-${p.slice(7)}`:p.length===10?`(${p.slice(0,2)}) ${p.slice(2,6)}-${p.slice(6)}`:p;
+function contactCell(x){
+  const parts=[];
+  [x.telefone_1,x.telefone_2].forEach(t=>{
+    const p=digits(t); if(p.length<10)return;
+    const mobile=p.length===11&&p[2]==="9";
+    parts.push(`<a class="contact-link" target="_blank" rel="noopener" href="${mobile?"https://wa.me/55"+p:"tel:+55"+p}">${mobile?"WhatsApp ":""}${fmtPhone(p)}</a>`);
+  });
+  if(x.email)parts.push(`<a class="contact-link" href="mailto:${escapeHtml(x.email)}">${escapeHtml(x.email)}</a>`);
+  return parts.length?parts.join("<br>"):"<span class='tag'>Contato não localizado</span>";
+}
+function companyCell(x){
+  const nome=x.razao_social||x.nome_devedor||"Devedor não identificado";
+  const fant=x.nome_fantasia?" · "+x.nome_fantasia:"";
+  const end=[x.logradouro&&(x.logradouro+(x.numero_endereco?", "+x.numero_endereco:"")),x.bairro,x.municipio_empresa&&(x.municipio_empresa+(x.uf_empresa?"/"+x.uf_empresa:""))].filter(Boolean).join(" - ");
+  const so=Array.isArray(x.socios)&&x.socios.length?"Sócios: "+x.socios.slice(0,3).map(s=>s.nome).join(", ")+(x.socios.length>3?` +${x.socios.length-3}`:""):"";
+  return `<strong>${escapeHtml(nome)}</strong><small>${escapeHtml(x.cnpj||"CNPJ não disponível")}${escapeHtml(fant)}</small>`+(end?`<small>${escapeHtml(end)}</small>`:"")+(so?`<small>${escapeHtml(so)}</small>`:"");
 }
 function render(){
   const rows=filtered(), start=page*PAGE_SIZE, slice=rows.slice(start,start+PAGE_SIZE);
   $("count").textContent=`${rows.length.toLocaleString("pt-BR")} registros`;
-  $("rows").innerHTML=slice.length?slice.map(x=>{
-    const phone=digits(x.telefone_comercial);
-    const wa=phone?`https://wa.me/55${phone}`:"";
-    const title=escapeHtml(x.nome_devedor||"Devedor não identificado");
-    return `<tr><td><strong>${title}</strong><small>${escapeHtml(x.cnpj||"CNPJ não disponível")}</small></td><td>${escapeHtml(x.natureza||"Não informado")}</td><td><span class="tag">${escapeHtml(x.situacao||"Não informada")}</span></td><td>${money(x.valor_divida)}</td><td>${wa?`<a class="contact-link" target="_blank" rel="noopener" href="${wa}">WhatsApp</a>`:"<span class='tag'>Contato não localizado</span>"}</td></tr>`;
-  }).join(""):'<tr><td colspan="5" class="empty">Nenhum registro encontrado com esses filtros.</td></tr>';
+  $("rows").innerHTML=slice.length?slice.map(x=>`<tr><td>${companyCell(x)}</td><td>${escapeHtml(x.natureza||"Não informado")}</td><td><span class="tag">${escapeHtml(x.situacao||"Não informada")}</span></td><td>${money(x.valor_divida)}</td><td>${contactCell(x)}</td></tr>`).join(""):'<tr><td colspan="5" class="empty">Nenhum registro encontrado com esses filtros.</td></tr>';
   $("prev").disabled=page===0;$("next").disabled=start+PAGE_SIZE>=rows.length;
 }
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
