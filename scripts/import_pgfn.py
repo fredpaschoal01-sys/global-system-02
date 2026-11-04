@@ -1,4 +1,5 @@
 import os, re, csv, json, time, zipfile, hashlib, tempfile
+from collections import Counter
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -18,6 +19,9 @@ BATCH_SIZE = int(env("BATCH_SIZE", "250"))
 # Trecho do nome do ZIP a baixar. Confira o nome real no site da PGFN.
 ARQUIVO = env("PGFN_ARQUIVO", "Sistema_SIDA").lower()
 DELIMITER = env("CSV_DELIMITER", ";")
+# PRINCIPAL evita contar a mesma dívida várias vezes (corresponsáveis). Use ALL para trazer todos.
+TIPO_DEVEDOR = env("TIPO_DEVEDOR", "PRINCIPAL").upper()
+tipos_vistos = Counter()
 
 def retry(fn, tries=5):
     for i in range(tries):
@@ -139,7 +143,7 @@ def main():
             print("Colunas detectadas:", headers)
             cnpj_col = choose(headers, ["CPF_CNPJ", "CPF/CNPJ", "CNPJ", "NI_DEVEDOR", "NUMERO_DOCUMENTO"])
             name_col = choose(headers, ["NOME_DEVEDOR", "NOME", "DEVEDOR", "NOME_RAZAO_SOCIAL"])
-            nature_col = choose(headers, ["TIPO_CREDITO", "NATUREZA", "NATUREZA_DIVIDA", "DESCRICAO_NATUREZA"])
+            nature_col = choose(headers, ["RECEITA_PRINCIPAL", "TIPO_CREDITO", "NATUREZA", "NATUREZA_DIVIDA", "DESCRICAO_NATUREZA"])
             status_col = choose(headers, ["TIPO_SITUACAO_INSCRICAO", "SITUACAO_INSCRICAO", "SITUACAO"])
             value_col = choose(headers, ["VALOR_CONSOLIDADO", "VALOR_INSCRICAO", "VALOR_TOTAL", "VALOR"])
             type_col = choose(headers, ["TIPO_DEVEDOR"])
@@ -156,6 +160,9 @@ def main():
                 if not cnpj: continue
                 uf = str(row.get(uf_col, "")).strip().upper() if uf_col else None
                 if UF_FILTER not in ("ALL", "BR", "BRASIL") and uf and uf != UF_FILTER: continue
+                tipo = str(row.get(type_col, "")).strip().upper() if type_col else ""
+                tipos_vistos[tipo] += 1
+                if TIPO_DEVEDOR != "ALL" and type_col and not tipo.startswith(TIPO_DEVEDOR): continue
                 inscr = str(row.get(inscr_col, "")).strip() if inscr_col else f"linha{line_no}"
                 identity = "|".join([quarter, csv_name, cnpj, inscr, str(row.get(type_col, ""))])
                 batch.append({
@@ -183,9 +190,10 @@ def main():
             if batch: post_batch(batch); sent += len(batch)
         if MAX_ROWS and total >= MAX_ROWS: break
     os.unlink(path)
+    print("Tipos de devedor vistos:", dict(tipos_vistos))
     print(f"Concluído. Registros processados: {total}; enviados/upsert: {sent}")
     if sent == 0:
-        raise RuntimeError("Nenhum registro importado. Verifique UF, layout e colunas reconhecidas.")
+        raise RuntimeError(f"Nenhum registro importado. Verifique UF, TIPO_DEVEDOR e colunas. Tipos vistos: {dict(tipos_vistos)}")
 
 def io_text(raw):
     import io
