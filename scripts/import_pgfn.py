@@ -12,6 +12,7 @@ INDEX_URL = "https://dadosabertos.pgfn.gov.br/"
 BASE_URL = INDEX_URL
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+UF_FILTER = env("UF_FILTER", "SP").upper()
 MAX_ROWS = int(env("MAX_ROWS", "1000"))
 BATCH_SIZE = int(env("BATCH_SIZE", "250"))
 # Trecho do nome do ZIP a baixar. Confira o nome real no site da PGFN.
