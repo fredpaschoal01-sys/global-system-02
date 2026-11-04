@@ -10,9 +10,8 @@ def env(name, default):
 
 INDEX_URL = "https://dadosabertos.pgfn.gov.br/"
 BASE_URL = INDEX_URL
-SUPABASE_URL = os.environ["https://gjluwjfcqdkucbncztqg.supabase.co"].rstrip("/")
-SERVICE_KEY = os.environ["sb_publishable_QReQLEEm-8xApUS_rF8b1g_6RDstoAb"]
-UF_FILTER = env("UF_FILTER", "SP").upper()
+SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
+SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 MAX_ROWS = int(env("MAX_ROWS", "1000"))
 BATCH_SIZE = int(env("BATCH_SIZE", "250"))
 # Trecho do nome do ZIP a baixar. Confira o nome real no site da PGFN.
